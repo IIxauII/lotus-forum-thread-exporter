@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chrome Web Store Promo Images Generator</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .image-generator {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .preview {
+            border: 2px solid #ddd;
+            margin: 10px 0;
+            position: relative;
+        }
+        .small-tile {
+            width: 440px;
+            height: 280px;
+            background: linear-gradient(135deg, rgba(0, 51, 51, 1), rgba(0, 41, 41, 1));
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            text-align: center;
+        }
+        .marquee-tile {
+            width: 1400px;
+            height: 560px;
+            background: linear-gradient(135deg, rgba(0, 51, 51, 1), rgba(0, 41, 41, 1));
+            display: flex;
+            align-items: center;
+            padding: 40px;
+            color: white;
+        }
+        .icon {
+            width: 128px;
+            height: 128px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 64px;
+            margin-bottom: 20px;
+        }
+        .marquee-icon {
+            width: 200px;
+            height: 200px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 100px;
+            margin-right: 40px;
+        }
+        .title {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .subtitle {
+            font-size: 16px;
+            opacity: 0.9;
+        }
+        .marquee-title {
+            font-size: 48px;
+            font-weight: bold;
+            margin-bottom: 20px;
+        }
+        .marquee-subtitle {
+            font-size: 24px;
+            margin-bottom: 15px;
+        }
+        .marquee-features {
+            font-size: 18px;
+            opacity: 0.9;
+        }
+        .download-btn {
+            background: rgba(0, 51, 51, 1);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 10px 5px;
+        }
+        .download-btn:hover {
+            background: rgba(0, 41, 41, 1);
+        }
+        .tile-container {
+            position: relative;
+            display: inline-block;
+        }
+        .download-overlay {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 3px;
+            font-size: 12px;
+            cursor: pointer;
+        }
+        .instructions {
+            background: #e8f4f8;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Chrome Web Store Promo Images Generator</h1>
+        
+        <div class="instructions">
+            <h3>Instructions:</h3>
+            <ol>
+                <li>Right-click on each preview image below</li>
+                <li>Select "Save image as..." or "Copy image"</li>
+                <li>Save with the suggested filename</li>
+                <li>Upload to Chrome Web Store</li>
+            </ol>
+        </div>
+
+        <div class="image-generator">
+            <h2>Small Promotional Tile (440x280)</h2>
+            <div class="preview">
+                <div class="tile-container">
+                    <div class="small-tile" id="small-tile">
+                        <div class="icon">📥</div>
+                        <div class="title">Lotus Forum Thread Exporter</div>
+                        <div class="subtitle">Export threads as PDF</div>
+                    </div>
+                    <div class="download-overlay" onclick="downloadTile('small-tile', 'promo-small-440x280.png')">Download</div>
+                </div>
+            </div>
+            <p><strong>Save as:</strong> promo-small-440x280.png</p>
+        </div>
+
+        <div class="image-generator">
+            <h2>Marquee Promotional Tile (1400x560)</h2>
+            <div class="preview">
+                <div class="tile-container">
+                    <div class="marquee-tile" id="marquee-tile">
+                        <div class="marquee-icon">📥</div>
+                        <div>
+                            <div class="marquee-title">Lotus Forum Thread Exporter</div>
+                            <div class="marquee-subtitle">Export Lotus Forum threads as formatted PDF Documents</div>
+                            <div class="marquee-features">One click export - complete thread export</div>
+                        </div>
+                    </div>
+                    <div class="download-overlay" onclick="downloadTile('marquee-tile', 'promo-marquee-1400x560.png')">Download</div>
+                </div>
+            </div>
+            <p><strong>Save as:</strong> promo-marquee-1400x560.png</p>
+        </div>
+
+        <div class="image-generator">
+            <h2>Screenshot Requirements</h2>
+            <p>For screenshots, you need to take actual screenshots of your extension in action:</p>
+            <ul>
+                <li><strong>Size:</strong> 1280x800 or 640x400 pixels</li>
+                <li><strong>Format:</strong> JPEG or 24-bit PNG (no alpha channel)</li>
+                <li><strong>Content:</strong> Show actual functionality, not mockups</li>
+                <li><strong>Required:</strong> At least 1 screenshot, maximum 5</li>
+            </ul>
+            
+            <h3>Suggested Screenshots:</h3>
+            <ol>
+                <li><strong>Main Export:</strong> Thread page with export button visible</li>
+                <li><strong>Extension Popup:</strong> Popup interface showing controls</li>
+                <li><strong>Export Progress:</strong> Button in exporting state with shimmer</li>
+                <li><strong>PDF Preview:</strong> Exported PDF showing British Racing Green theme</li>
+                <li><strong>Multi-page Thread:</strong> Thread with pagination being exported</li>
+            </ol>
+        </div>
+    </div>
+
+    <script>
+        // Download promotional tile as image
+        function downloadTile(tileId, filename) {
+            const tile = document.getElementById(tileId);
+            if (tile) {
+                // Create a canvas with the exact dimensions
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                
+                if (tileId === 'small-tile') {
+                    canvas.width = 440;
+                    canvas.height = 280;
+                } else if (tileId === 'marquee-tile') {
+                    canvas.width = 1400;
+                    canvas.height = 560;
+                }
+                
+                // Set British Racing Green background
+                ctx.fillStyle = 'rgb(0, 51, 51)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                // Draw the tile content
+                ctx.fillStyle = 'white';
+                ctx.font = 'bold 24px Segoe UI, system-ui, sans-serif';
+                ctx.textAlign = 'center';
+                
+                if (tileId === 'small-tile') {
+                    // Draw icon
+                    ctx.font = '64px Arial';
+                    ctx.fillText('📥', canvas.width/2, 100);
+                    
+                    // Draw title
+                    ctx.font = 'bold 24px Segoe UI, system-ui, sans-serif';
+                    ctx.fillText('Lotus Forum Thread Exporter', canvas.width/2, 150);
+                    
+                    // Draw subtitle
+                    ctx.font = '16px Segoe UI, system-ui, sans-serif';
+                    ctx.fillText('Export threads as PDF', canvas.width/2, 180);
+                } else if (tileId === 'marquee-tile') {
+                    // Draw icon
+                    ctx.font = '100px Arial';
+                    ctx.fillText('📥', 120, 200);
+                    
+                    // Draw title
+                    ctx.font = 'bold 48px Segoe UI, system-ui, sans-serif';
+                    ctx.textAlign = 'left';
+                    ctx.fillText('Lotus Forum Thread Exporter', 200, 200);
+                    
+                    // Draw subtitle
+                    ctx.font = '24px Segoe UI, system-ui, sans-serif';
+                    ctx.fillText('Export Lotus Forum threads as formatted PDF Documents', 200, 250);
+                    
+                    // Draw features
+                    ctx.font = '18px Segoe UI, system-ui, sans-serif';
+                    ctx.fillText('One click export - complete thread export', 200, 300);
+                }
+                
+                // Download the canvas as image
+                const link = document.createElement('a');
+                link.download = filename;
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+            }
+        }
+    </script>
+</body>
+</html>
