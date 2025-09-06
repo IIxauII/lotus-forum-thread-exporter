@@ -1,5 +1,9 @@
 # Lotus Forum Thread Exporter
 
+<div align="center">
+  <img src="store_listing/promo-small-440x280.png" alt="Lotus Forum Thread Exporter" width="440" height="280">
+</div>
+
 A Chrome extension that exports WoltLab Lotus Forum threads as PDF documents.
 
 ## Features
