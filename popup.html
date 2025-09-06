@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Lotus Forum Thread Exporter</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <div class="popup-container">
+      <!-- Header -->
+      <header class="popup-header">
+        <div class="logo">
+          <h1>Lotus Forum Thread Exporter</h1>
+          <div class="version">v1.0.0</div>
+        </div>
+      </header>
+
+      <!-- Main Content -->
+      <main class="popup-content">
+        <!-- Toggle Section -->
+        <section class="toggle-section">
+          <div class="toggle-container">
+            <div class="status-indicator">
+              <div class="status-dot" id="toggleStatusDot"></div>
+              <span class="status-text" id="toggleStatusText">Off</span>
+            </div>
+            <label class="toggle-label" for="extensionToggle">
+              <div class="toggle-switch">
+                <input
+                  type="checkbox"
+                  id="extensionToggle"
+                  class="toggle-input"
+                  checked
+                />
+                <span class="toggle-slider"></span>
+              </div>
+            </label>
+          </div>
+        </section>
+
+        <!-- Stats Section -->
+        <section class="stats-section">
+          <div class="stats-compact">
+            <span class="stat-item">
+              <span class="stat-number" id="totalExports">0</span>
+              <span class="stat-label">exports</span>
+            </span>
+            <span class="stat-item">
+              <span class="stat-number" id="lastExport">Never</span>
+              <span class="stat-label">last export</span>
+            </span>
+          </div>
+        </section>
+
+        <!-- Export History Section -->
+        <section class="export-history-section">
+          <div class="export-history-header">
+            <h4>Recent Exports</h4>
+            <button
+              id="clearHistoryBtn"
+              class="icon-btn clear-btn"
+              title="Clear Export History"
+            >
+              🗑️
+            </button>
+          </div>
+          <div class="export-history-list" id="exportHistoryList">
+            <div class="no-exports">
+              <p>No exports yet</p>
+              <small>Export a thread to see it here</small>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <!-- Footer -->
+      <footer class="popup-footer">
+        <div class="footer-text">
+          Made for
+          <a
+            href="https://www.lotus-forum.de/"
+            target="_blank"
+            class="footer-link"
+            >lotus-forum.de</a
+          >
+        </div>
+      </footer>
+    </div>
+
+    <script src="popup.js"></script>
+  </body>
+</html>

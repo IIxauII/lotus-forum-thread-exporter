@@ -1,0 +1,68 @@
+{
+  "manifest_version": 3,
+  "name": "Lotus Forum Thread Exporter",
+  "version": "1.0.0",
+  "description": "Export Lotus Forum threads as PDF documents",
+  "author": "Lotus Forum Community",
+
+  "permissions": [
+    "activeTab",
+    "storage",
+    "scripting",
+    "clipboardWrite",
+    "downloads",
+    "unlimitedStorage"
+  ],
+
+  "host_permissions": ["*://www.lotus-forum.de/*", "*://lotus-forum.de/*"],
+
+  "content_scripts": [
+    {
+      "matches": [
+        "*://www.lotus-forum.de/WBB/index.php?thread/*",
+        "*://lotus-forum.de/WBB/index.php?thread/*"
+      ],
+      "js": [
+        "libs/html2pdf.js",
+        "js/config.js",
+        "js/logger.js",
+        "js/thread-detector.js",
+        "js/thread-scraper.js",
+        "js/pdf-generator.js",
+        "js/ui-manager.js",
+        "content.js"
+      ],
+      "css": ["styles.css"],
+      "run_at": "document_end"
+    }
+  ],
+
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Lotus Forum Thread Exporter",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+
+  "web_accessible_resources": [
+    {
+      "resources": ["libs/*", "icons/*"],
+      "matches": ["*://www.lotus-forum.de/*", "*://lotus-forum.de/*"]
+    }
+  ],
+
+  "background": {
+    "service_worker": "background.js"
+  }
+}
