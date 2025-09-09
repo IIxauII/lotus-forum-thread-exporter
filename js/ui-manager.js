@@ -11,7 +11,7 @@ class UIManager {
   // Check if extension is enabled
   async checkExtensionStatus() {
     try {
-      const result = await chrome.storage.sync.get(["extensionEnabled"]);
+      const result = await chrome.storage.local.get(["extensionEnabled"]);
       this.isExtensionEnabled = result.extensionEnabled;
       return this.isExtensionEnabled;
     } catch (error) {

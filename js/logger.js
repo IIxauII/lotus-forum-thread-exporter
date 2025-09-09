@@ -27,6 +27,7 @@ class Logger {
 
   // Add log entry
   addLog(level, message, data) {
+    return;
     const logEntry = {
       timestamp: new Date().toISOString(),
       level: level,
@@ -112,10 +113,18 @@ class Logger {
   }
 }
 
-// Create singleton instance
-const logger = new Logger();
-
-// Export for use in other modules
-if (typeof window !== "undefined") {
-  window.logger = logger;
-}
+// Ensure a global singleton exists and is safe to access everywhere
+(function () {
+  try {
+    if (typeof window !== "undefined") {
+      if (!window.logger || typeof window.logger.log !== "function") {
+        window.logger = new Logger();
+      }
+      if (!window.LOG) {
+        window.LOG = window.logger; // optional alias
+      }
+    }
+  } catch (e) {
+    // Fallback intentionally no-op; console remains available
+  }
+})();

@@ -9,6 +9,7 @@ class ThreadScraper {
 
   // Scrape thread data from current page and all pages
   async scrapeThreadData() {
+    logger.log("Scraper: scrapeThreadData start");
     const threadData = {
       title: this.detector.getThreadTitle(),
       url: window.location.href,
@@ -17,26 +18,39 @@ class ThreadScraper {
       scrapedAt: new Date().toISOString(),
     };
 
-    // Scrape current page
-    const currentPagePosts = this.scrapeCurrentPage();
-    threadData.posts.push(...currentPagePosts);
-
-    // Check for pagination and scrape additional pages
+    // Determine pagination and scrape pages strictly via HTTP in order
     const totalPages = this.detector.getTotalPages();
-    if (totalPages > 1) {
-      for (
-        let page = 2;
-        page <= Math.min(totalPages, this.config.export.maxPages);
-        page++
-      ) {
-        try {
-          const pagePosts = await this.scrapePage(page);
-          threadData.posts.push(...pagePosts);
-        } catch (error) {
-          console.warn(`Failed to scrape page ${page}:`, error);
-        }
+    const currentPage = this.detector.getCurrentPage();
+    logger.log("Scraper: detected pagination", {
+      totalPages,
+      currentPage,
+      maxPages: this.config.export && this.config.export.maxPages,
+    });
+    logger.log("Scraper: scraping all pages via HTTP", { totalPages });
+    for (let page = 1; page <= totalPages; page++) {
+      try {
+        logger.log("Scraper: fetching page", { page });
+        const pagePosts = await this.scrapePage(page);
+        logger.log("Scraper: page scraped", {
+          page,
+          posts: pagePosts.length,
+          firstPostNumber: pagePosts[0]?.postNumber,
+          lastPostNumber: pagePosts[pagePosts.length - 1]?.postNumber,
+        });
+        threadData.posts.push(...pagePosts);
+      } catch (error) {
+        console.warn(`Failed to scrape page ${page}:`, error);
+        logger.warn("Scraper: page scrape failed", {
+          page,
+          message: error && error.message,
+        });
       }
     }
+    logger.log("Scraper: scrapeThreadData complete", {
+      totalPosts: threadData.posts.length,
+      firstPostNumber: threadData.posts[0]?.postNumber,
+      lastPostNumber: threadData.posts[threadData.posts.length - 1]?.postNumber
+    });
     return threadData;
   }
 
@@ -50,6 +64,7 @@ class ThreadScraper {
     );
 
     if (messageElements.length === 0) {
+      logger.warn("Scraper: no message elements on current page");
       // Fallback: look for any element that might contain post content
       const fallbackElements = document.querySelectorAll(
         'div[class*="message"], article[class*="message"]'
@@ -85,6 +100,7 @@ class ThreadScraper {
     if (!pageUrl) throw new Error(`No URL found for page ${pageNumber}`);
 
     try {
+      logger.log("Scraper: requesting page", { pageNumber, pageUrl });
       const response = await fetch(pageUrl);
       const html = await response.text();
       const parser = new DOMParser();
@@ -110,8 +126,16 @@ class ThreadScraper {
         posts.push(post);
       });
 
+      logger.log("Scraper: parsed page", {
+        pageNumber,
+        posts: posts.length,
+      });
       return posts;
     } catch (error) {
+      logger.error("Scraper: failed to scrape page", {
+        pageNumber,
+        message: error && error.message,
+      });
       throw new Error(`Failed to scrape page ${pageNumber}: ${error.message}`);
     }
   }
@@ -124,9 +148,10 @@ class ThreadScraper {
     );
     if (postNumberEl) {
       const text = postNumberEl.textContent.trim();
-      // Check if it's just a number (like #1, #2, etc.)
-      if (text.match(/^#\d+$/)) {
-        return text;
+      // Check if it's a post number (like #1, #2, ##1, etc.) and clean it up
+      if (text.match(/^#+\d+$/)) {
+        // Clean up multiple # symbols to just one
+        return text.replace(/^#+/, '#');
       }
     }
 
@@ -169,26 +194,116 @@ class ThreadScraper {
     const contentEl = messageEl.querySelector(
       this.config.selectors.messageText
     );
-    if (contentEl && contentEl.textContent.trim()) {
-      // Clean up the content
-      const content = contentEl.cloneNode(true);
+    if (!contentEl) return '';
 
-      // Remove unwanted elements
-      const unwantedSelectors = [
-        ".quoteBox",
-        ".attachmentThumbnail",
-        ".messageFooter",
-      ];
-      unwantedSelectors.forEach((sel) => {
-        const elements = content.querySelectorAll(sel);
-        elements.forEach((el) => el.remove());
-      });
+    // Clean up the content by removing unwanted elements
+    const cleanedContent = this.cleanContentElement(contentEl);
+    
+    // Parse and format content directly to final text
+    return this.parseAndFormatContent(cleanedContent);
+  }
 
-      return content.innerHTML;
+  // Clean content element by removing unwanted elements
+  cleanContentElement(element) {
+    const cleaned = element.cloneNode(true);
+    
+    // Remove unwanted elements
+    const unwantedSelectors = [
+      ".quoteBox",
+      ".attachmentThumbnail", 
+      ".messageFooter",
+    ];
+    
+    unwantedSelectors.forEach((sel) => {
+      const elements = cleaned.querySelectorAll(sel);
+      elements.forEach((el) => el.remove());
+    });
+
+    return cleaned;
+  }
+
+  // Parse and format content directly to final text
+  parseAndFormatContent(element) {
+    let result = '';
+    
+    // Process each child node and format directly
+    Array.from(element.childNodes).forEach(node => {
+      if (node.nodeType === Node.TEXT_NODE) {
+        const text = node.textContent.trim();
+        if (text) {
+          result += text;
+        }
+      } else if (node.nodeType === Node.ELEMENT_NODE) {
+        result += this.formatElement(node);
+      }
+    });
+    
+    return this.cleanupWhitespace(result);
+  }
+
+  // Format individual HTML element to text
+  formatElement(element) {
+    const tagName = element.tagName.toLowerCase();
+    
+    switch (tagName) {
+      case 'p':
+        return '\n\n' + this.extractTextContent(element);
+      case 'br':
+        return '\n';
+      case 'strong':
+      case 'b':
+        return '**' + this.extractTextContent(element) + '**';
+      case 'em':
+      case 'i':
+        return '*' + this.extractTextContent(element) + '*';
+      case 'a':
+        const text = this.extractTextContent(element);
+        const url = element.href;
+        return text + ' (' + url + ')';
+      case 'blockquote':
+        return '\n> ' + this.extractTextContent(element) + '\n';
+      case 'ul':
+        return '\n' + Array.from(element.querySelectorAll('li'))
+          .map(li => '• ' + this.extractTextContent(li))
+          .join('\n') + '\n';
+      case 'ol':
+        return '\n' + Array.from(element.querySelectorAll('li'))
+          .map((li, index) => (index + 1) + '. ' + this.extractTextContent(li))
+          .join('\n') + '\n';
+      case 'div':
+        // For divs, process children and combine
+        const children = Array.from(element.childNodes)
+          .map(node => {
+            if (node.nodeType === Node.TEXT_NODE) {
+              return node.textContent.trim();
+            } else if (node.nodeType === Node.ELEMENT_NODE) {
+              return this.formatElement(node);
+            }
+            return '';
+          })
+          .filter(text => text);
+        
+        return children.join('');
+      default:
+        // For unknown elements, just extract text
+        return this.extractTextContent(element);
     }
+  }
 
-    // Fallback: get all text content
-    return messageEl.textContent.trim();
+  // Extract text content from element
+  extractTextContent(element) {
+    return element.textContent || element.innerText || '';
+  }
+
+  // Clean up whitespace in processed text
+  cleanupWhitespace(text) {
+    return text
+      .replace(/\n\s*\n\s*\n/g, "\n\n") // Replace 3+ line breaks with 2
+      .replace(/[ \t]+/g, " ") // Replace multiple spaces/tabs with single space
+      .replace(/\n /g, "\n") // Remove spaces at start of lines
+      .replace(/ \n/g, "\n") // Remove spaces at end of lines
+      .replace(/\n{3,}/g, "\n\n") // Replace 3+ consecutive newlines with 2
+      .trim();
   }
 
   getPostAttachments(messageEl) {
@@ -223,7 +338,7 @@ class ThreadScraper {
 
       quotes.push({
         title: titleEl ? titleEl.textContent.trim() : "",
-        content: contentEl ? contentEl.innerHTML : "",
+        content: contentEl ? this.parseAndFormatContent(contentEl) : "",
         author: this.extractQuoteAuthor(titleEl),
       });
     });

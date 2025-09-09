@@ -23,9 +23,11 @@
         "*://lotus-forum.de/WBB/index.php?thread/*"
       ],
       "js": [
+        "libs/jspdf.umd.js",
         "libs/html2pdf.js",
         "js/config.js",
         "js/logger.js",
+        "js/emoji.js",
         "js/thread-detector.js",
         "js/thread-scraper.js",
         "js/pdf-generator.js",
@@ -63,6 +65,7 @@
   ],
 
   "background": {
-    "service_worker": "background.js"
+    "service_worker": "background.js",
+    "type": "module"
   }
 }

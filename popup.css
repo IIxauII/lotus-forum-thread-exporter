@@ -405,6 +405,38 @@ body {
   background-color: #6c757d;
 }
 
+/* Storage Information Display */
+.storage-info {
+  background: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 8px;
+  padding: 12px;
+  margin: 8px 0;
+  font-size: 12px;
+}
+
+.storage-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.storage-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.storage-label {
+  font-weight: 500;
+  color: #495057;
+}
+
+.storage-value {
+  color: #6c757d;
+  font-family: 'Courier New', monospace;
+}
+
 /* Responsive adjustments */
 @media (max-width: 400px) {
   .popup-container {

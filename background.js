@@ -1,37 +1,39 @@
 // Lotus Forum Thread Exporter - Background Service Worker
 // Background script loaded
 
-// PDF storage (temporary storage for downloads)
-const pdfStorage = new Map();
+// Storage Manager - Centralized storage operations
+import { StorageManager } from './js/storage/storage-manager.js';
+let storageManager = null;
+let isInitializing = false;
+let isInitialized = false;
 
 // Initialize storage with proper defaults
 async function initializeStorage() {
-  // Initializing storage
-
   try {
-    // Initialize sync storage (settings only - 100KB limit)
-    const existingSettings = await chrome.storage.sync.get([
-      "extensionEnabled",
-    ]);
-
-    if (
-      Object.keys(existingSettings).length === 0 ||
-      existingSettings.extensionEnabled === undefined
-    ) {
-      await chrome.storage.sync.set({
-        extensionEnabled: true,
-        exportTheme: "british-racing-green",
-        includeAttachments: true,
-        maxHistorySize: 10,
-        enableConsoleLogging: true,
-      });
+    if (isInitialized || isInitializing) {
+      console.log("ℹ️ Storage initialization skipped (already in progress or completed)");
+      return;
     }
+    isInitializing = true;
 
-    // Initialize local storage (PDF data - 10MB + unlimitedStorage)
-    const existingStats = await chrome.storage.local.get([
-      "exportStats",
-      "exportHistory",
-    ]);
+    // Initialize storage managers
+    storageManager = new StorageManager();
+    await storageManager.initialize();
+    
+    console.log("✅ Storage initialized successfully");
+    isInitialized = true;
+  } catch (error) {
+    console.error("❌ Error initializing storage:", error);
+  } finally {
+    isInitializing = false;
+  }
+}
+
+// Initialize basic storage without external modules
+async function initializeBasicStorage() {
+  try {
+    // Initialize Chrome storage with defaults
+    const existingStats = await chrome.storage.local.get(["exportStats", "exportHistory"]);
     if (!existingStats.exportStats) {
       await chrome.storage.local.set({
         exportStats: {
@@ -39,16 +41,14 @@ async function initializeStorage() {
           lastExport: null,
         },
         exportHistory: [],
-        storageStats: {
-          totalSize: 0,
-          lastCleanup: null,
-        },
       });
     }
   } catch (error) {
-    console.error("❌ Error initializing storage:", error);
+    console.error("❌ Error initializing basic storage:", error);
   }
 }
+
+// (Legacy migration removed)
 
 // Initialize on install/update
 chrome.runtime.onInstalled.addListener(async (details) => {
@@ -93,206 +93,7 @@ chrome.storage.local.getBytesInUse().then((bytes) => {
   }
 });
 
-// Smart PDF Storage Management Functions
-async function manageExportHistory(newExport) {
-  try {
-    console.log("🔍 Managing export history for:", newExport.threadTitle);
-    console.log("🔍 Export data:", {
-      id: newExport.id,
-      title: newExport.threadTitle,
-      hasPdfBase64: !!newExport.pdfBase64,
-      pdfBase64Length: newExport.pdfBase64 ? newExport.pdfBase64.length : 0,
-      pdfSize: newExport.pdfSize,
-    });
-
-    const { exportHistory = [] } = await chrome.storage.local.get([
-      "exportHistory",
-    ]);
-    console.log("🔍 Current export history length:", exportHistory.length);
-
-    // Add new export to the beginning
-    exportHistory.unshift(newExport);
-
-    // Try to save with PDF data first
-    const result = await trySaveWithPdf(exportHistory, newExport);
-
-    // Verify storage
-    const verify = await chrome.storage.local.get(["exportHistory"]);
-    console.log(
-      "🔍 Verification - stored exports:",
-      verify.exportHistory.length
-    );
-    if (verify.exportHistory[0]) {
-      console.log("🔍 First export in storage:", {
-        id: verify.exportHistory[0].id,
-        title: verify.exportHistory[0].threadTitle,
-        hasPdfBase64: !!verify.exportHistory[0].pdfBase64,
-        pdfBase64Length: verify.exportHistory[0].pdfBase64
-          ? verify.exportHistory[0].pdfBase64.length
-          : 0,
-        pdfStored: verify.exportHistory[0].pdfStored,
-      });
-    }
-
-    // Check storage quota
-    await checkStorageQuota();
-  } catch (error) {
-    console.error("❌ Error managing export history:", error);
-  }
-}
-
-// Try to save with PDF data, fallback to smart cleanup if needed
-async function trySaveWithPdf(exportHistory, newExport) {
-  // With Chrome storage approach, we only store metadata (no PDF data in this storage)
-  // PDFs are stored separately in Chrome storage using chunking
-  console.log("🔍 Using Chrome storage approach - storing metadata only");
-
-  // Remove PDF data from all entries (PDFs are stored separately)
-  const exportHistoryMetadata = exportHistory.map((exp) => ({
-    ...exp,
-    pdfBase64: undefined, // Remove base64 data
-    pdfSize: exp.pdfSize, // Keep size info
-    pdfStored: exp.pdfStored || false, // Keep storage status
-  }));
-
-  const dataSize = JSON.stringify(exportHistoryMetadata).length;
-  const quota = chrome.storage.local.QUOTA_BYTES;
-  const usagePercent = (dataSize / quota) * 100;
-
-  console.log("🔍 Metadata size:", dataSize, "bytes");
-  console.log("🔍 Storage quota:", quota, "bytes");
-  console.log("🔍 Usage percentage:", usagePercent.toFixed(2) + "%");
-
-  // Metadata should always fit (it's small)
-  if (usagePercent < 95) {
-    console.log("✅ Under 95% quota - saving metadata");
-    await chrome.storage.local.set({ exportHistory: exportHistoryMetadata });
-    console.log(
-      `📁 Added export to history: ${newExport.threadTitle} (metadata only, PDF in Chrome storage)`
-    );
-    return { success: true, withPdf: newExport.pdfStored, chromeStorage: true };
-  }
-
-  // If metadata is too large, clean up old entries
-  console.log("⚠️ Metadata too large - cleaning up old entries");
-  const cleanedHistory = await smartCleanup(exportHistoryMetadata, newExport);
-
-  if (cleanedHistory) {
-    const cleanedSize = JSON.stringify(cleanedHistory).length;
-    const cleanedPercent = (cleanedSize / quota) * 100;
-
-    if (cleanedPercent < 95) {
-      console.log("✅ Cleanup successful - saving metadata");
-      await chrome.storage.local.set({ exportHistory: cleanedHistory });
-      console.log(
-        `📁 Added export to history: ${newExport.threadTitle} (metadata after cleanup)`
-      );
-      return {
-        success: true,
-        withPdf: newExport.pdfStored,
-        chromeStorage: true,
-        cleaned: true,
-      };
-    }
-  }
-
-  // This should never happen with metadata-only storage
-  console.error("❌ Cannot fit metadata - this should not happen");
-  throw new Error("Cannot fit metadata in storage");
-}
-
-// Smart cleanup: remove old entries without PDFs, then old entries with PDFs if needed
-async function smartCleanup(exportHistory, newExport) {
-  console.log("🧹 Starting smart cleanup...");
-
-  // First pass: remove entries without PDFs (oldest first)
-  let cleaned = [...exportHistory];
-  const withoutPdf = cleaned.filter(
-    (exp) => !exp.pdfBase64 || exp.pdfStored === false
-  );
-  const withPdf = cleaned.filter(
-    (exp) => exp.pdfBase64 && exp.pdfStored !== false
-  );
-
-  console.log("🔍 Entries without PDF:", withoutPdf.length);
-  console.log("🔍 Entries with PDF:", withPdf.length);
-
-  // Remove oldest entries without PDFs first
-  const toRemove = withoutPdf.slice(1); // Keep the newest one without PDF
-  cleaned = cleaned.filter((exp) => !toRemove.includes(exp));
-
-  console.log("🧹 Removed", toRemove.length, "entries without PDFs");
-
-  // Check if we can fit now
-  let dataSize = JSON.stringify(cleaned).length;
-  let usagePercent = (dataSize / chrome.storage.local.QUOTA_BYTES) * 100;
-
-  if (usagePercent < 95) {
-    console.log("✅ Cleanup successful after removing entries without PDFs");
-    return cleaned;
-  }
-
-  // Second pass: remove oldest entries with PDFs
-  console.log("🧹 Still over quota - removing oldest entries with PDFs...");
-
-  // Sort by timestamp (oldest first) and remove oldest
-  const sortedWithPdf = withPdf.sort((a, b) => {
-    const timeA = new Date(a.exportDate || a.timestamp || 0).getTime();
-    const timeB = new Date(b.exportDate || b.timestamp || 0).getTime();
-    return timeA - timeB;
-  });
-
-  // Remove oldest entries with PDFs until we're under 95%
-  let removedCount = 0;
-  while (usagePercent >= 95 && sortedWithPdf.length > 1) {
-    const oldest = sortedWithPdf.shift();
-    cleaned = cleaned.filter((exp) => exp.id !== oldest.id);
-    removedCount++;
-
-    dataSize = JSON.stringify(cleaned).length;
-    usagePercent = (dataSize / chrome.storage.local.QUOTA_BYTES) * 100;
-  }
-
-  console.log("🧹 Removed", removedCount, "additional entries with PDFs");
-  console.log("🔍 Final usage after cleanup:", usagePercent.toFixed(2) + "%");
-
-  return cleaned;
-}
-
-async function checkStorageQuota() {
-  try {
-    const usage = await chrome.storage.local.getBytesInUse();
-    const quota = chrome.storage.local.QUOTA_BYTES; // 10MB
-    const usagePercent = (usage / quota) * 100;
-
-    console.log(
-      `📊 Storage usage: ${(usage / 1024 / 1024).toFixed(2)}MB / ${(
-        quota /
-        1024 /
-        1024
-      ).toFixed(2)}MB (${usagePercent.toFixed(1)}%)`
-    );
-
-    if (usagePercent > 80) {
-      console.warn("⚠️ Storage quota approaching limit, consider cleanup");
-      // Could trigger additional cleanup here if needed
-    }
-  } catch (error) {
-    console.error("❌ Error checking storage quota:", error);
-  }
-}
-
-async function getExportHistory() {
-  try {
-    const { exportHistory = [] } = await chrome.storage.local.get([
-      "exportHistory",
-    ]);
-    return exportHistory;
-  } catch (error) {
-    console.error("❌ Error getting export history:", error);
-    return [];
-  }
-}
+// Legacy functions removed - now using StorageManager
 
 // Handle extension icon click
 chrome.action.onClicked.addListener((tab) => {
@@ -302,133 +103,44 @@ chrome.action.onClicked.addListener((tab) => {
 
 // Handle messages from content script and popup
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  if (request.action === "storePDF") {
-    try {
-      // Store PDF in memory
-      pdfStorage.set(request.exportId, {
-        pdfBase64: request.pdfBase64,
-        pdfSize: request.pdfSize,
-        timestamp: Date.now(),
-      });
-
-      sendResponse({ success: true });
-    } catch (error) {
-      console.error("Error storing PDF:", error);
-      sendResponse({ success: false, error: error.message });
-    }
+  // Handle storage operations with new storage manager
+  if (request.action === "storeExport") {
+    handleStoreExport(request, sendResponse);
     return true;
   }
 
   if (request.action === "downloadPDF") {
-    // Use async function to handle the download
-    (async () => {
-      try {
-        const pdfData = pdfStorage.get(request.exportId);
-        if (!pdfData) {
-          sendResponse({ success: false, error: "PDF not found" });
-          return;
-        }
-
-        // Use the base64 data URL directly (no need to convert back to blob)
-        const dataUrl = pdfData.pdfBase64;
-
-        // Trigger download using the data URL directly
-        chrome.downloads.download(
-          {
-            url: dataUrl,
-            filename: `export_${request.exportId}.pdf`,
-            saveAs: false,
-          },
-          (downloadId) => {
-            if (chrome.runtime.lastError) {
-              console.error("Download failed:", chrome.runtime.lastError);
-              sendResponse({
-                success: false,
-                error: chrome.runtime.lastError.message,
-              });
-            } else {
-              sendResponse({ success: true, downloadId: downloadId });
-            }
-          }
-        );
-      } catch (error) {
-        console.error("Error downloading PDF:", error);
-        sendResponse({ success: false, error: error.message });
-      }
-    })();
-
+    handleDownloadPDF(request, sendResponse);
     return true;
   }
 
   if (request.action === "clearExportHistory") {
-    try {
-      // Clear export history from storage
-      chrome.storage.local.remove(["exportHistory"]);
-
-      // Clear PDF storage
-      pdfStorage.clear();
-
-      // Reset export stats
-      chrome.storage.local.set({
-        exportStats: { totalExports: 0, lastExport: null },
-      });
-
-      sendResponse({ success: true });
-    } catch (error) {
-      console.error("Error clearing export history:", error);
-      sendResponse({ success: false, error: error.message });
-    }
-    return true;
-  }
-
-  if (request.action === "updateExportStats") {
-    chrome.storage.local.get(["exportStats"], (result) => {
-      const stats = result.exportStats || { totalExports: 0, lastExport: null };
-      stats.totalExports += 1;
-      stats.lastExport = new Date().toISOString();
-
-      chrome.storage.local.set({ exportStats: stats });
-      sendResponse({ success: true });
-    });
-    return true; // Keep message channel open for async response
-  }
-
-  if (request.action === "addExportToHistory") {
-    console.log("🔍 Processing addExportToHistory request...");
-    console.log("🔍 Export data received:", {
-      id: request.exportData.id,
-      title: request.exportData.threadTitle,
-      hasPdfBase64: !!request.exportData.pdfBase64,
-      pdfBase64Length: request.exportData.pdfBase64
-        ? request.exportData.pdfBase64.length
-        : 0,
-    });
-
-    manageExportHistory(request.exportData)
-      .then(() => {
-        console.log("🔍 Export history management completed successfully");
-        sendResponse({ success: true });
-      })
-      .catch((error) => {
-        console.error("❌ Error in manageExportHistory:", error);
-        sendResponse({ success: false, error: error.message });
-      });
+    handleClearExportHistory(sendResponse);
     return true;
   }
 
   if (request.action === "getExportHistory") {
-    getExportHistory()
-      .then((history) => {
-        sendResponse({ exportHistory: history });
-      })
-      .catch((error) => {
-        sendResponse({ exportHistory: [], error: error.message });
-      });
+    handleGetExportHistory(sendResponse);
+    return true;
+  }
+
+  if (request.action === "getStorageStats") {
+    handleGetStorageStats(sendResponse);
+    return true;
+  }
+
+  if (request.action === "updateExportStats") {
+    handleUpdateExportStats(sendResponse);
+    return true;
+  }
+
+  if (request.action === "storePdfBlob") {
+    handleStorePdfBlob(request, sendResponse);
     return true;
   }
 
   if (request.action === "getSettings") {
-    chrome.storage.sync.get(
+    chrome.storage.local.get(
       [
         "extensionEnabled",
         "exportTheme",
@@ -460,4 +172,151 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     });
     return true;
   }
+
+  if (request.action === "downloadViaObjectUrl") {
+    // Trigger download using a blob URL created in an extension page
+    chrome.downloads.download(
+      {
+        url: request.url,
+        filename: request.filename || `export_${Date.now()}.pdf`,
+        saveAs: false,
+      },
+      (downloadId) => {
+        if (chrome.runtime.lastError) {
+          sendResponse({ success: false, error: chrome.runtime.lastError.message });
+        } else {
+          sendResponse({ success: true, downloadId });
+        }
+      }
+    );
+    return true;
+  }
 });
+
+// Message handler functions routed through StorageManager
+
+async function handleStoreExport(request, sendResponse) {
+  try {
+    const result = await storageManager.storeExport(request.exportData);
+    sendResponse(result);
+  } catch (error) {
+    console.error("Error storing export:", error);
+    sendResponse({ success: false, error: error.message });
+  }
+}
+
+async function handleDownloadPDF(request, sendResponse) {
+  try {
+    const { success, pdfBlob, error } = await storageManager.getPdf(request.exportId);
+    if (!success || !pdfBlob) {
+      sendResponse({ success: false, error: error || 'PDF not found' });
+      return;
+    }
+
+    const dataUrl = await blobToDataUrl(pdfBlob);
+    const filename = `${request.exportId}.pdf`;
+
+    chrome.downloads.download({ url: dataUrl, filename, saveAs: false }, (downloadId) => {
+      if (chrome.runtime.lastError) {
+        sendResponse({ success: false, error: chrome.runtime.lastError.message });
+      } else {
+        sendResponse({ success: true, downloadId });
+      }
+    });
+  } catch (error) {
+    console.error("Error downloading PDF:", error);
+    sendResponse({ success: false, error: error.message });
+  }
+}
+
+async function handleClearExportHistory(sendResponse) {
+  try {
+    const result = await storageManager.clearAllStorage();
+    sendResponse(result);
+  } catch (error) {
+    console.error("Error clearing export history:", error);
+    sendResponse({ success: false, error: error.message });
+  }
+}
+
+async function handleGetExportHistory(sendResponse) {
+  try {
+    const exportHistory = await storageManager.getExportHistory();
+    sendResponse({ exportHistory });
+  } catch (error) {
+    console.error("Error getting export history:", error);
+    sendResponse({ exportHistory: [], error: error.message });
+  }
+}
+
+async function handleGetStorageStats(sendResponse) {
+  try {
+    const stats = await storageManager.getStorageStats();
+    sendResponse({ success: true, stats });
+  } catch (error) {
+    console.error("Error getting storage stats:", error);
+    sendResponse({ success: false, error: error.message });
+  }
+}
+
+async function handleUpdateExportStats(sendResponse) {
+  try {
+    const { exportStats = { totalExports: 0, lastExport: null } } = await chrome.storage.local.get(["exportStats"]);
+    exportStats.totalExports += 1;
+    exportStats.lastExport = new Date().toISOString();
+    
+    await chrome.storage.local.set({ exportStats });
+    sendResponse({ success: true });
+  } catch (error) {
+    console.error("Error updating export stats:", error);
+    sendResponse({ success: false, error: error.message });
+  }
+}
+
+async function handleStorePdfBlob(request, sendResponse) {
+  try {
+    const { exportId, pdfBase64, pdfSize } = request;
+    
+    console.log("🔍 Storing PDF blob:", exportId, "Size:", pdfSize);
+    
+    // Convert base64 back to blob
+    const response = await fetch(pdfBase64);
+    const pdfBlob = await response.blob();
+    
+    console.log("🔍 Converted to blob, size:", pdfBlob.size);
+    
+    // Store in IndexedDB using StorageManager
+    await storageManager.indexedDB.storePdf(exportId, pdfBlob);
+    
+    // Update metadata to mark PDF as stored
+    const { exportHistory = [] } = await chrome.storage.local.get(["exportHistory"]);
+    const exportIndex = exportHistory.findIndex(exp => exp.id === exportId);
+    if (exportIndex !== -1) {
+      exportHistory[exportIndex].pdfStored = true;
+      await chrome.storage.local.set({ exportHistory });
+      console.log("✅ Updated metadata to mark PDF as stored");
+    }
+    
+    console.log("✅ PDF blob stored in IndexedDB:", exportId, "Size:", pdfSize);
+    sendResponse({ success: true });
+  } catch (error) {
+    console.error("❌ Error storing PDF blob:", error);
+    console.error("❌ Error details:", error.name, error.message);
+    sendResponse({ success: false, error: error.message });
+  }
+}
+
+// Helper function for blob to data URL conversion
+async function blobToDataUrl(blob) {
+  const buffer = await blob.arrayBuffer();
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  const chunkSize = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    const chunk = bytes.subarray(i, i + chunkSize);
+    binary += String.fromCharCode.apply(null, chunk);
+  }
+  const base64 = btoa(binary);
+  return `data:application/pdf;base64,${base64}`;
+}
+

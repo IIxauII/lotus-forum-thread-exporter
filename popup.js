@@ -9,6 +9,7 @@ class PopupManager {
       totalExports: 0,
       lastExport: null,
     };
+    this.storageStats = null;
 
     this.init();
   }
@@ -27,6 +28,9 @@ class PopupManager {
 
     // Load export history
     await this.loadExportHistory();
+
+    // Load storage statistics
+    await this.loadStorageStats();
 
     // Setup event listeners
     this.setupEventListeners();
@@ -55,7 +59,7 @@ class PopupManager {
   // Load extension state from storage
   async loadExtensionState() {
     try {
-      const result = await chrome.storage.sync.get(["extensionEnabled"]);
+      const result = await chrome.storage.local.get(["extensionEnabled"]);
       this.extensionEnabled = result.extensionEnabled !== false; // Default to true
     } catch (error) {
       console.error("❌ Error loading extension state:", error);
@@ -73,6 +77,22 @@ class PopupManager {
       // Export stats loaded
     } catch (error) {
       console.error("Error loading export stats:", error);
+    }
+  }
+
+  // Load storage statistics
+  async loadStorageStats() {
+    try {
+      const result = await chrome.runtime.sendMessage({
+        action: "getStorageStats",
+      });
+
+      if (result.success && result.stats) {
+        this.storageStats = result.stats;
+        this.updateStorageDisplay();
+      }
+    } catch (error) {
+      console.error("Error loading storage stats:", error);
     }
   }
 
@@ -101,7 +121,7 @@ class PopupManager {
   // Save extension state
   async saveExtensionState() {
     try {
-      await chrome.storage.sync.set({
+      await chrome.storage.local.set({
         extensionEnabled: this.extensionEnabled,
       });
       console.log("Extension state saved:", this.extensionEnabled);
@@ -484,6 +504,56 @@ class PopupManager {
     }
   }
 
+  // Update storage display in UI
+  updateStorageDisplay() {
+    if (!this.storageStats) return;
+
+    // Find or create storage info element
+    let storageInfo = document.getElementById('storage-info');
+    if (!storageInfo) {
+      // Create storage info element
+      storageInfo = document.createElement('div');
+      storageInfo.id = 'storage-info';
+      storageInfo.className = 'storage-info';
+      
+      // Insert after export history section
+      const exportHistory = document.getElementById('export-history-list');
+      if (exportHistory && exportHistory.parentNode) {
+        exportHistory.parentNode.insertBefore(storageInfo, exportHistory.nextSibling);
+      }
+    }
+
+    // Format storage usage
+    const chromeUsed = this.storageStats.chromeStorage ? 
+      (this.storageStats.chromeStorage.used / 1024 / 1024).toFixed(1) : 0;
+    const chromeQuota = this.storageStats.chromeStorage ? 
+      (this.storageStats.chromeStorage.quota / 1024 / 1024).toFixed(1) : 10;
+    const chromePercent = this.storageStats.chromeStorage ? 
+      this.storageStats.chromeStorage.percentage.toFixed(1) : 0;
+
+    const idbUsed = this.storageStats.indexedDB ? 
+      (this.storageStats.indexedDB.used / 1024 / 1024).toFixed(1) : 0;
+    const idbQuota = this.storageStats.indexedDB ? 
+      (this.storageStats.indexedDB.quota / 1024 / 1024).toFixed(1) : 500;
+
+    const pdfCount = this.storageStats.indexedDB ? 
+      this.storageStats.indexedDB.pdfCount : 0;
+
+    // Update storage info display
+    storageInfo.innerHTML = `
+      <div class="storage-stats">
+        <div class="storage-item">
+          <span class="storage-label">Metadata:</span>
+          <span class="storage-value">${chromeUsed}MB / ${chromeQuota}MB (${chromePercent}%)</span>
+        </div>
+        <div class="storage-item">
+          <span class="storage-label">PDFs:</span>
+          <span class="storage-value">${pdfCount} files, ${idbUsed}MB / ${idbQuota}MB</span>
+        </div>
+      </div>
+    `;
+  }
+
   // Clear export history
   async clearExportHistory() {
     try {
@@ -495,10 +565,12 @@ class PopupManager {
       // Clear local data
       this.exportHistory = [];
       this.exportStats = { totalExports: 0, lastExport: null };
+      this.storageStats = null;
 
       // Update UI immediately
       this.renderExportHistory();
       this.updateStats();
+      this.updateStorageDisplay();
     } catch (error) {
       console.error("Error clearing export history:", error);
     }

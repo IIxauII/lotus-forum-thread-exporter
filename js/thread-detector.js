@@ -1,12 +1,37 @@
 // Lotus Forum Thread Exporter - Thread Detection
 // Handles WoltLab thread detection and validation
 
+/**
+ * ThreadDetector class handles detection and validation of WoltLab forum threads
+ * 
+ * This class provides methods to identify WoltLab threads, extract thread metadata,
+ * and determine pagination information for proper thread scraping.
+ * 
+ * @class ThreadDetector
+ * @since 1.0.0
+ */
 class ThreadDetector {
+  /**
+   * Creates an instance of ThreadDetector
+   * 
+   * @param {Object} config - Configuration object containing selectors and patterns
+   * @param {Array<RegExp>} config.urlPatterns - URL patterns to match WoltLab threads
+   * @param {Object} config.selectors - DOM selectors for thread elements
+   * @since 1.0.0
+   */
   constructor(config) {
     this.config = config;
   }
 
-  // Check if current page is a WoltLab thread
+  /**
+   * Checks if the current page is a valid WoltLab thread
+   * 
+   * This method validates the page by checking URL patterns, DOM structure,
+   * and WoltLab-specific attributes to ensure it's a proper thread page.
+   * 
+   * @returns {boolean} True if the page is a valid WoltLab thread
+   * @since 1.0.0
+   */
   isWoltLabThread() {
     const url = window.location.href;
     const hasUrlPattern = this.config.urlPatterns.some((pattern) =>
@@ -61,12 +86,24 @@ class ThreadDetector {
     return 1;
   }
 
+  // Get current page number
+  getCurrentPage() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const pageNo = urlParams.get("pageNo");
+    return pageNo ? parseInt(pageNo) : 1;
+  }
+
   // Get URL for specific page
   getPageUrl(pageNumber) {
-    const currentUrl = window.location.href;
-    const baseUrl = currentUrl.split("?")[0];
-    const params = new URLSearchParams(window.location.search);
-    params.set("pageNo", pageNumber);
-    return `${baseUrl}?${params.toString()}`;
+    const url = new URL(window.location.href);
+    // WoltLab threads can include a postID param that anchors to a post and
+    // interferes with pagination. Remove it to fetch the canonical page.
+    url.searchParams.delete("postID");
+    url.searchParams.set("pageNo", String(pageNumber));
+    // Clear hash anchors like #post12345
+    url.hash = "";
+    // Some instances show percent-encoded thread path in logs, but the browser
+    // URL object preserves the correct path automatically.
+    return url.toString();
   }
 }
