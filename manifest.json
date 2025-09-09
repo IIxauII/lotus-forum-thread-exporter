@@ -1,18 +1,12 @@
 {
   "manifest_version": 3,
   "name": "Lotus Forum Thread Exporter",
-  "version": "1.0.0",
-  "description": "Export Lotus Forum threads as PDF documents",
+  "version": "1.0.1",
+  "description": "Export Lotus Forum threads as PDF documents with a single click",
   "author": "Lotus Forum Community",
+  "homepage_url": "https://github.com/IIxauII/lotus-forum-thread-exporter",
 
-  "permissions": [
-    "activeTab",
-    "storage",
-    "scripting",
-    "clipboardWrite",
-    "downloads",
-    "unlimitedStorage"
-  ],
+  "permissions": ["activeTab", "storage", "downloads", "unlimitedStorage"],
 
   "host_permissions": ["*://www.lotus-forum.de/*", "*://lotus-forum.de/*"],
 
@@ -24,7 +18,6 @@
       ],
       "js": [
         "libs/jspdf.umd.js",
-        "libs/html2pdf.js",
         "js/config.js",
         "js/logger.js",
         "js/emoji.js",

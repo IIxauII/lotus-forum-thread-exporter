@@ -3895,15 +3895,18 @@
 
         case "pdfobjectnewwindow":
           if (Object.prototype.toString.call(globalObject) === "[object Window]") {
-            var pdfObjectUrl = "https://cdnjs.cloudflare.com/ajax/libs/pdfobject/2.1.1/pdfobject.min.js";
-            var integrity = ' integrity="sha512-4ze/a9/4jqu+tX9dfOqJYSvyYd5M6qum/3HpCLr+/Jqf0whc37VUbkpNGHR7/8pSnCFw47T1fmIpwBV7UySh3g==" crossorigin="anonymous"';
+            // External CDN references removed for Chrome Web Store compliance
+            // This functionality is not used by the Lotus Forum Thread Exporter extension
+            var pdfObjectUrl = ""; // Disabled - not used by this extension
+            var integrity = ""; // Disabled - not used by this extension
 
             if (options.pdfObjectUrl) {
               pdfObjectUrl = options.pdfObjectUrl;
               integrity = "";
             }
 
-            var htmlForNewWindow = "<html>" + '<style>html, body { padding: 0; margin: 0; } iframe { width: 100%; height: 100%; border: 0;}  </style><body><script src="' + pdfObjectUrl + '"' + integrity + '></script><script >PDFObject.embed("' + this.output("dataurlstring") + '", ' + JSON.stringify(options) + ");</script></body></html>";
+            // Simplified HTML without external script loading
+            var htmlForNewWindow = "<html>" + '<style>html, body { padding: 0; margin: 0; } iframe { width: 100%; height: 100%; border: 0;}  </style><body><iframe src="' + this.output("dataurlstring") + '" width="100%" height="100%"></iframe></body></html>';
             var nW = globalObject.open();
 
             if (nW !== null) {

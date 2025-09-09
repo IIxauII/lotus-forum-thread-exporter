@@ -55,6 +55,7 @@ class Logger {
 
   // Store logs in chrome.storage.local
   async storeLogs() {
+    return;
     if (!this.exportId) {
       return;
     }
